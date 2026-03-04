@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import Image from 'next/image'
 import Link from 'next/link'
 import { getArticle, getSimilar, getTrending } from '@/lib/articles'
 import ArticleCard from '@/components/ArticleCard'
@@ -70,8 +69,8 @@ export default async function ArticlePage({ params }: { params: { id: string } }
             </div>
           )}
 
-          <div className="relative rounded-2xl overflow-hidden mb-6" style={{ aspectRatio: '16/9' }}>
-            <Image src={img} alt={article!.title} fill className="object-cover" priority />
+          <div className="relative rounded-2xl overflow-hidden mb-6" style={{ aspectRatio: '16/9', position: 'relative' }}>
+            <img src={img} alt={article!.title} className="absolute inset-0 w-full h-full object-cover" />
           </div>
 
           {intro && (

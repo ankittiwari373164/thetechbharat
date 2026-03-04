@@ -5,76 +5,35 @@ export async function fetchAndRewrite(query: string, category = 'launch', brand 
   if (!groqKey) throw new Error('GROQ_API_KEY not set')
 
   const newsRes = await fetch(
-    `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${newsKey}`
+    `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=6&apiKey=${newsKey}`
   )
-  if (!newsRes.ok) throw new Error(`NewsAPI error ${newsRes.status}: ${await newsRes.text()}`)
+  if (!newsRes.ok) throw new Error(`NewsAPI error ${newsRes.status}`)
   const newsData = await newsRes.json()
   if (newsData.status === 'error') throw new Error(`NewsAPI: ${newsData.message}`)
-  
-  const items = (newsData.articles || []).filter((a: any) => a.title && a.title !== '[Removed]').slice(0, 3)
-  if (!items.length) throw new Error(`No news found for: "${query}". Try a different search term.`)
+
+  const items = (newsData.articles || [])
+    .filter((a: any) => a.title && a.title !== '[Removed]' && a.description)
+    .slice(0, 3)
+  if (!items.length) throw new Error(`No news found for: "${query}"`)
 
   const results = []
   for (const item of items) {
-    const raw = item.content || item.description || item.title
+    const raw = [item.title, item.description, item.content].filter(Boolean).join('\n')
 
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 1600,
-        temperature: 0.97,
-        messages: [
-          {
-            role: 'system',
-            content: `You write for The Tech Bharat. You are a real Indian person who has used smartphones daily for 10 years. You write the way you talk — casual, direct, occasionally annoyed.
-
-Your writing style rules (NON-NEGOTIABLE):
-1. NEVER start with the brand name or a formal statement
-2. Open with YOUR reaction/opinion: "Okay so...", "Look,", "Right, so", "My friend asked me about this yesterday and honestly..."
-3. Mix sentence lengths dramatically. One word sentences. Then ones that go on and on with details and asides and more details.
-4. Include at least one India-specific gripe: load shedding affecting charging, heat throttling in Delhi summers, whether it's on Flipkart Big Billion sale
-5. Use these naturally: "yaar", "tbh", "ngl", "wait what", "lol", "okay but", "wild", "sus", "fair enough"  
-6. Have ONE paragraph where you're genuinely uncertain or mixed: "I go back and forth on this"
-7. Specific ₹ prices like "seventy-two grand" or "₹72,999"
-8. End with a hot take, not a summary
-9. BANNED WORDS: "Furthermore", "Moreover", "In conclusion", "To summarize", "It is worth noting", "Additionally", "Overall", "Delve", "Comprehensive"
-10. ## headings must sound human: "## okay the camera situation" not "## Camera System"`
-          },
-          {
-            role: 'user',
-            content: `Write a ${category} article about this news for Indian smartphone buyers. 750-900 words. 
-
-Source (use only as reference, rewrite completely in your own voice):
-"${item.title}"
-${raw ? raw.slice(0, 400) : ''}
-
-Brand: ${brand || 'various'}`
-          }
-        ]
-      })
-    })
-
-    if (!groqRes.ok) {
-      const errText = await groqRes.text()
-      throw new Error(`Groq error ${groqRes.status}: ${errText}`)
-    }
-    const groqData = await groqRes.json()
-    const content = groqData.choices?.[0]?.message?.content || ''
+    const content = await rewriteWithGroq(raw, category, brand, groqKey)
     if (!content) continue
 
     results.push({
-      title:      rewriteTitle(item.title, brand, category),
+      title:      generateTitle(item.title, brand, category),
       content,
-      excerpt:    extractExcerpt(content),
+      excerpt:    firstRealParagraph(content),
       category,
-      brand:      brand || detectBrand(item.title),
+      brand:      brand || guessBrand(item.title + ' ' + (item.description || '')),
       img_url:    item.urlToImage || '',
       source_url: item.url || '',
     })
 
-    await new Promise(r => setTimeout(r, 600))
+    await sleep(700)
   }
   return results
 }
@@ -82,62 +41,108 @@ Brand: ${brand || 'various'}`
 export async function generateArticle(topic: string, category: string, brand: string) {
   const groqKey = process.env.GROQ_API_KEY
   if (!groqKey) throw new Error('GROQ_API_KEY not set')
+  return await writeFromScratch(topic, category, brand, groqKey)
+}
 
-  const typeMap: Record<string, string> = {
-    launch:     'new launch coverage',
-    review:     'honest review after weeks of use',
-    comparison: 'detailed comparison to help Indians decide',
-    update:     'software update coverage',
-    guide:      'buying guide for Indian buyers'
-  }
-
+async function rewriteWithGroq(source: string, category: string, brand: string, key: string): Promise<string> {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
       max_tokens: 1800,
-      temperature: 0.97,
+      temperature: 0.98,
       messages: [
-        {
-          role: 'system',
-          content: `You write for The Tech Bharat as a real Indian person. Casual, honest, opinionated. Mix short punchy sentences with long rambling ones. Use "yaar", "tbh", "ngl", "okay but". Include India context. BANNED: "Furthermore", "Moreover", "In conclusion", "To summarize", "Comprehensive", "Delve". Headings must be conversational.`
-        },
+        { role: 'system', content: humanWriterSystem() },
         {
           role: 'user',
-          content: `Write a ${typeMap[category] || 'tech article'} about: "${topic}"
-Brand: ${brand || 'various'}
-750-950 words. Sound like a real person who tested this phone in Indian conditions.`
+          content: `Write a ${category} article for Indian readers. Base it on this source info but write it completely fresh in your own voice. Do NOT summarize or paraphrase — tell the story like you're explaining it to your friend who asked you about this phone.
+
+Source info:
+${source.slice(0, 600)}
+
+Brand: ${brand || 'detect from source'}
+Length: 850-1000 words`
         }
       ]
     })
   })
-
-  if (!res.ok) throw new Error(`Groq error ${res.status}`)
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content || ''
+  if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`)
+  const d = await res.json()
+  return d.choices?.[0]?.message?.content || ''
 }
 
-function rewriteTitle(original: string, brand: string, category: string): string {
-  const b = brand || detectBrand(original) || 'This Phone'
-  const templates: Record<string, string[]> = {
-    launch:     [`${b}'s New Phone: Should Indians Care?`, `I Looked at the New ${b}. Mixed Feelings.`, `${b} Just Announced Something. Here's the Honest Take.`],
-    review:     [`${b} After 3 Weeks: The Good and the Annoying`, `Honest ${b} Review for Indian Buyers`, `I Used the ${b} Daily. Here's What I Actually Think.`],
-    comparison: [`${b} vs The Competition: Which One Should You Buy?`, `Don't Spend ₹50k Until You Read This`],
-    update:     [`${b} Just Pushed an Update. Does It Fix Things?`, `New ${b} Update — What Actually Changed`],
-    guide:      [`Best Phones Right Now in India (No Fluff)`, `The Only Buying Guide You Need This Month`],
-  }
-  const list = templates[category] || templates['launch']
-  return list[Math.floor(Math.random() * list.length)]
+async function writeFromScratch(topic: string, category: string, brand: string, key: string): Promise<string> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 1900,
+      temperature: 0.98,
+      messages: [
+        { role: 'system', content: humanWriterSystem() },
+        {
+          role: 'user',
+          content: `Write a ${category} article about: "${topic}"
+Brand: ${brand || 'various'}
+Length: 850-1000 words
+Write it as if you've actually used or tested this product. Be specific. Be opinionated. Talk to Indian buyers directly.`
+        }
+      ]
+    })
+  })
+  if (!res.ok) throw new Error(`Groq ${res.status}`)
+  const d = await res.json()
+  return d.choices?.[0]?.message?.content || ''
 }
 
-function extractExcerpt(content: string): string {
-  const paras = content.split('\n\n').filter(p => p.trim() && !p.trim().startsWith('#'))
-  return (paras[0] || content).replace(/^#+\s*/, '').slice(0, 220).trim()
+function humanWriterSystem(): string {
+  return `You are Rahul, a 28-year-old Indian tech enthusiast who writes for The Tech Bharat. You grew up in Pune, now live in Bangalore. You've been reviewing phones since 2016. You're not a professional journalist — you're just a guy who really loves phones and hates when companies rip people off.
+
+HOW YOU WRITE:
+- You ramble a bit. Your thoughts aren't perfectly organized. Sometimes you go on a tangent about something related and bring it back.
+- You mix Hindi-English naturally: "yaar", "sahi mein", "dekho", "matlab", "thoda" — but don't overdo it
+- You get genuinely excited about good things ("okay wait, the night mode shots are actually stunning")
+- You get genuinely annoyed by bad things ("1 lakh ke phone mein no charger in box? seriously Samsung?")
+- You make specific real comparisons to other Indian-priced phones ("you can get a OnePlus 12R for the same price and it's just as fast")
+- You remember that most Indians use their phone in 40°C heat, on long train journeys, and during power cuts
+- You use specific numbers: ₹72,999 not "around 70k", 4500mAh not "large battery"
+- Your sentences vary wildly. Short. Then a longer one that has a lot of detail packed in because you want to make a point thoroughly. One word sometimes. Then back to normal.
+- You NEVER write formal transitions like "Furthermore", "Moreover", "In addition", "To summarize", "In conclusion", "It is worth noting", "Overall"
+- You NEVER start a new topic paragraph with the phone name
+- Your ## headings are natural: "## the camera, though" or "## okay but does it get hot?" NOT "## Camera Performance Analysis"
+- You include at least ONE moment of genuine uncertainty: "I go back and forth on this one"
+- You end with your actual recommendation, not a summary
+- Your opening line is NEVER a formal statement. It's a reaction, a question you were asked, something that happened.`
 }
 
-function detectBrand(text: string): string {
-  const brands = ['Samsung','Apple','OnePlus','Realme','Google','Xiaomi','Redmi','Vivo','Oppo','Poco','Nothing','Motorola']
+function generateTitle(original: string, brand: string, category: string): string {
+  // Keep close to original but make it sound like a real person wrote it
+  const b = brand || guessBrand(original)
+  const clean = original.replace(/[^\w\s₹]/g, '').trim().slice(0, 80)
+
+  // Don't use templates - derive from actual content
+  if (category === 'review') return `${b} Review: I Used It for 3 Weeks. Here's What I Think.`
+  if (category === 'comparison') return `${b} vs The Rest: Which One Should You Actually Buy?`
+  if (category === 'guide') return `Best Phones to Buy in India Right Now — My Honest Take`
+  if (category === 'update') return `${b} Update Is Out — Does It Actually Fix Things?`
+  // For launch - use the actual story
+  return clean.length > 20 ? clean : `${b}: What You Need to Know Before Spending Your Money`
+}
+
+function firstRealParagraph(content: string): string {
+  const lines = content.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+  const first = lines[0] || content
+  return first.slice(0, 230)
+}
+
+function guessBrand(text: string): string {
+  const brands = ['Samsung','Apple','OnePlus','Realme','Google','Xiaomi','Redmi','Vivo','Oppo','Poco','Nothing','Motorola','iQOO']
   const lower = (text || '').toLowerCase()
   return brands.find(b => lower.includes(b.toLowerCase())) || 'The Tech Bharat'
+}
+
+function sleep(ms: number) {
+  return new Promise(r => setTimeout(r, ms))
 }

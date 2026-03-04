@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import { getArticles } from '@/lib/articles'
 import { timeAgo, CAT_COLOR, CAT_LABEL, brandFallbackImg } from '@/lib/utils'
 
@@ -28,7 +27,7 @@ export default async function WebStories() {
                 <Link key={a.id} href={`/article/${a.id}`}
                   className="group relative rounded-2xl overflow-hidden bg-gray-900 hover:scale-105 transition-transform duration-300 cursor-pointer"
                   style={{ aspectRatio: '9/16' }}>
-                  <Image src={img} alt={a.title} fill className="object-cover opacity-80 group-hover:opacity-90 transition-opacity"/>
+                  <img src={img} alt={a.title} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity"/>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"/>
                   <div className="absolute inset-0 ring-3 ring-red-500 ring-inset rounded-2xl opacity-80"/>
                   <div className="absolute bottom-0 left-0 right-0 p-3">
