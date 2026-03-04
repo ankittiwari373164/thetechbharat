@@ -29,13 +29,23 @@ export async function POST(req: NextRequest) {
     try {
       const items = await fetchAndRewrite(query, category, brand)
       const saved = []
+      const errors = []
+
       for (const item of items) {
         try {
           const s = await saveArticle({ ...item, category })
           if (s) saved.push(s)
-        } catch (_e) {}
+        } catch (e: any) {
+          errors.push(e.message)
+        }
       }
-      return NextResponse.json({ saved, count: saved.length })
+
+      return NextResponse.json({
+        saved,
+        count: saved.length,
+        errors: errors.length > 0 ? errors : undefined,
+        fetched: items.length,
+      })
     } catch (e: any) {
       return NextResponse.json({ error: e.message }, { status: 500 })
     }

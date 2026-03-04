@@ -25,7 +25,6 @@ export async function getArticle(id: string): Promise<Article | null> {
   const { data, error } = await supabase
     .from('articles').select('*').eq('id', id).single()
   if (error) return null
-  // increment views fire-and-forget
   supabaseAdmin.from('articles')
     .update({ views: (data.views || 0) + 1 })
     .eq('id', id).then(() => {})
@@ -51,24 +50,19 @@ export async function getTrending(limit = 8): Promise<Article[]> {
 }
 
 export async function saveArticle(art: Partial<Article> & { dedup_key?: string }) {
-  const id = art.id || `art_${Date.now().toString(36)}${Math.random().toString(36).slice(2,5)}`
-  
-  // Use provided dedup_key (from AI fetch) or generate from title+timestamp
-  const dedupKey = art.dedup_key || 
-    `${(art.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}-${Date.now().toString(36)}`
-
+  const id = `art_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
   const row = {
     id,
-    title:        String(art.title   || '').trim(),
+    title:        String(art.title || '').trim(),
     content:      String(art.content || ''),
-    excerpt:      String(art.excerpt || art.content || '').replace(/^#+\s*/,'').slice(0, 220),
+    excerpt:      String(art.excerpt || art.content || '').replace(/^#+\s*/, '').slice(0, 220),
     category:     art.category     || 'launch',
     brand:        art.brand        || 'The Tech Bharat',
     img_url:      art.img_url      || '',
     rating:       art.rating       ? parseFloat(String(art.rating)) : null,
     published_at: art.published_at || new Date().toISOString(),
     source_url:   art.source_url   || '',
-    dedup_key:    dedupKey,
+    dedup_key:    `${id}-${Date.now()}`,
     views:        0,
     featured:     false,
   }
@@ -79,16 +73,7 @@ export async function saveArticle(art: Partial<Article> & { dedup_key?: string }
     .select()
     .single()
 
-  if (error) {
-    // If duplicate, try with a different key
-    if (error.code === '23505') {
-      const retryRow = { ...row, dedup_key: `${dedupKey}-${Math.random().toString(36).slice(2,6)}`, id: `art_${Date.now().toString(36)}` }
-      const retry = await supabaseAdmin.from('articles').insert(retryRow).select().single()
-      if (retry.error) throw new Error(retry.error.message)
-      return retry.data
-    }
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(`DB insert failed: ${error.message} [code: ${error.code}]`)
   return data
 }
 
