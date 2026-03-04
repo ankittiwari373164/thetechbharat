@@ -3,7 +3,7 @@ import { getTrending } from '@/lib/articles'
 
 export default async function BreakingTicker() {
   let articles: any[] = []
-  try { articles = await getTrending(12) } catch {}
+  try { articles = await getTrending(12) } catch (_e) {}
 
   if (!articles.length) return null
 

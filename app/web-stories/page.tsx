@@ -8,7 +8,7 @@ export const revalidate = 600
 
 export default async function WebStories() {
   let articles: any[] = []
-  try { articles = await getArticles({ limit: 24 }) } catch {}
+  try { articles = await getArticles({ limit: 24 }) } catch (_e) {}
 
   return (
     <div>
