@@ -9,9 +9,9 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
   const article = await getArticle(params.id)
   if (!article) return { title: 'Article Not Found' }
   return {
-    title: article.title,
-    description: article.excerpt,
-    openGraph: { title: article.title, description: article.excerpt, images: [article.img_url] }
+    title: a.title,
+    description: a.excerpt,
+    openGraph: { title: a.title, description: a.excerpt, images: [a.img_url] }
   }
 }
 
@@ -20,17 +20,18 @@ export const revalidate = 3600
 export default async function ArticlePage({ params }: { params: { id: string } }) {
   const article = await getArticle(params.id)
   if (!article) notFound()
+  const a = article!
 
   const [similar, trending] = await Promise.all([
-    getSimilar(article.id, article.category, 4),
+    getSimilar(a.id, a.category, 4),
     getTrending(5)
   ])
 
-  const img    = article.img_url || brandFallbackImg(article.brand)
-  const color  = CAT_COLOR[article.category] || '#555'
-  const label  = CAT_LABEL[article.category] || article.category
-  const { intro, bullets, full } = parseContent(article.content)
-  const shareUrl = `https://thetechbharat.com/article/${article.id}`
+  const img    = a.img_url || brandFallbackImg(a.brand)
+  const color  = CAT_COLOR[a.category] || '#555'
+  const label  = CAT_LABEL[a.category] || a.category
+  const { intro, bullets, full } = parseContent(a.content)
+  const shareUrl = `https://thetechbharat.com/article/${a.id}`
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -39,27 +40,27 @@ export default async function ArticlePage({ params }: { params: { id: string } }
           <nav className="text-sm text-gray-500 mb-4 flex items-center gap-2 flex-wrap">
             <Link href="/" className="hover:text-red-600">Home</Link>
             <span>›</span>
-            <span className="capitalize">{article.category}</span>
+            <span className="capitalize">{a.category}</span>
             <span>›</span>
-            <span className="text-gray-700 line-clamp-1">{article.title}</span>
+            <span className="text-gray-700 line-clamp-1">{a.title}</span>
           </nav>
 
           <div className="flex items-center gap-3 mb-4 flex-wrap">
             <span className="text-sm font-bold text-white px-3 py-1 rounded-full" style={{ background: color }}>{label}</span>
-            <span className="text-sm text-gray-500">{article.brand}</span>
+            <span className="text-sm text-gray-500">{a.brand}</span>
             <span className="text-gray-300">·</span>
-            <span className="text-sm text-gray-500">{timeAgo(article.published_at)}</span>
+            <span className="text-sm text-gray-500">{timeAgo(a.published_at)}</span>
           </div>
 
-          <h1 className="text-3xl lg:text-4xl font-black text-gray-900 leading-tight mb-4">{article.title}</h1>
+          <h1 className="text-3xl lg:text-4xl font-black text-gray-900 leading-tight mb-4">{a.title}</h1>
 
-          {article.rating && (
+          {a.rating && (
             <div className="flex items-center gap-3 mb-5 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <div className="text-3xl font-black text-yellow-500">{article.rating}</div>
+              <div className="text-3xl font-black text-yellow-500">{a.rating}</div>
               <div>
                 <div className="flex gap-0.5">
                   {[1,2,3,4,5].map(s => (
-                    <span key={s} className={`text-xl ${s <= Math.round(article.rating!) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                    <span key={s} className={`text-xl ${s <= Math.round(a.rating!) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
                   ))}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Expert Rating</div>
@@ -68,7 +69,7 @@ export default async function ArticlePage({ params }: { params: { id: string } }
           )}
 
           <div className="relative rounded-2xl overflow-hidden mb-6" style={{ aspectRatio: '16/9' }}>
-            <Image src={img} alt={article.title} fill className="object-cover" priority/>
+            <Image src={img} alt={a.title} fill className="object-cover" priority/>
           </div>
 
           {intro && (
@@ -92,8 +93,8 @@ export default async function ArticlePage({ params }: { params: { id: string } }
 
           <div className="mt-8 flex items-center gap-3 flex-wrap">
             <span className="font-bold text-gray-700">Share:</span>
-            <a href={`https://wa.me/?text=${encodeURIComponent(article.title + ' ' + shareUrl)}`} target="_blank" rel="noopener" className="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-green-600">WhatsApp</a>
-            <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(article.title)}&url=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener" className="bg-sky-500 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-sky-600">Twitter/X</a>
+            <a href={`https://wa.me/?text=${encodeURIComponent(a.title + ' ' + shareUrl)}`} target="_blank" rel="noopener" className="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-green-600">WhatsApp</a>
+            <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(a.title)}&url=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener" className="bg-sky-500 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-sky-600">Twitter/X</a>
           </div>
         </article>
 

@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import Link from 'next/link'
 import { getArticles, getTrending } from '@/lib/articles'
 import ArticleCard from '@/components/ArticleCard'
