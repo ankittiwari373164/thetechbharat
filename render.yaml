@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: thetechbharat
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: SET_IN_RENDER_DASHBOARD
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        value: SET_IN_RENDER_DASHBOARD
+      - key: SUPABASE_SERVICE_KEY
+        value: SET_IN_RENDER_DASHBOARD
+      - key: GROQ_API_KEY
+        value: SET_IN_RENDER_DASHBOARD
+      - key: NEWS_API_KEY
+        value: SET_IN_RENDER_DASHBOARD
+      - key: CRON_SECRET
+        value: ttb_cron_2026
+      - key: ADMIN_PASSWORD
+        value: TechBharat@2026
+      - key: PORT
+        value: 3000
