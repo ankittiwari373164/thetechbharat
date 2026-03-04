@@ -3,14 +3,18 @@ import { fetchAndRewrite, generateArticle } from '@/lib/ai'
 import { saveArticle } from '@/lib/articles'
 
 function checkAdmin(req: NextRequest) {
-  const auth = req.headers.get('x-admin-key') || req.nextUrl.searchParams.get('key')
-  return auth === process.env.ADMIN_PASSWORD
+  const adminPw = process.env.ADMIN_PASSWORD || 'TechBharat@2026'
+  const auth = req.headers.get('x-admin-key') || req.nextUrl.searchParams.get('key') || ''
+  return auth === adminPw
 }
 
 export async function POST(req: NextRequest) {
-  if (!checkAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!checkAdmin(req)) {
+    return NextResponse.json({ error: 'Unauthorized — wrong admin password' }, { status: 401 })
+  }
 
-  const { action, query, topic, category, brand } = await req.json()
+  const body = await req.json()
+  const { action, query, topic, category, brand } = body
 
   if (action === 'generate') {
     try {
@@ -29,7 +33,7 @@ export async function POST(req: NextRequest) {
         try {
           const s = await saveArticle({ ...item, category })
           if (s) saved.push(s)
-        } catch {}
+        } catch (_e) {}
       }
       return NextResponse.json({ saved, count: saved.length })
     } catch (e: any) {

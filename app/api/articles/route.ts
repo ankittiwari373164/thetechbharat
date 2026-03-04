@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getArticles, saveArticle, deleteArticle } from '@/lib/articles'
 
 function checkAdmin(req: NextRequest) {
-  const auth = req.headers.get('x-admin-key') || req.nextUrl.searchParams.get('key')
-  return auth === process.env.ADMIN_PASSWORD
+  const adminPw = process.env.ADMIN_PASSWORD || 'TechBharat@2026'
+  const auth = req.headers.get('x-admin-key') || req.nextUrl.searchParams.get('key') || ''
+  return auth === adminPw
 }
 
 export async function GET(req: NextRequest) {
